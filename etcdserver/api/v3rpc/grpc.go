@@ -20,8 +20,10 @@ import (
 
 	"go.etcd.io/etcd/v3/etcdserver"
 	pb "go.etcd.io/etcd/v3/etcdserver/etcdserverpb"
+	"golang.org/x/time/rate"
 
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
+	"github.com/grpc-ecosystem/go-grpc-middleware/ratelimit"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"go.etcd.io/etcd/v3/clientv3/credentials"
 	"google.golang.org/grpc"
@@ -35,9 +37,30 @@ const (
 	maxSendBytes      = math.MaxInt32
 )
 
+// LimiterParameters defines the rate limiting parameters
+type LimiterParameters struct {
+	Limiter *rate.Limiter
+}
+
+// Limit is the implemented to handle throttling queries per second
+func (limiter LimiterParameters) Limit() bool {
+	// false means, you're not violating any limits,
+	// the show will go on.
+	// when maxRequestPerSecond is max, no need to limit.
+	// Use this option when no throttling needs to be performed.
+	return !limiter.Limiter.Allow()
+}
+
+// Server initialises etcd server
 func Server(s *etcdserver.EtcdServer, tls *tls.Config, gopts ...grpc.ServerOption) *grpc.Server {
 	var opts []grpc.ServerOption
 	opts = append(opts, grpc.CustomCodec(&codec{}))
+
+	var rateLimiter = rate.NewLimiter(rate.Limit(s.Cfg.RequestsPerSecondLimit), int(s.Cfg.RequestsPerSecondLimit))
+	var limiter = LimiterParameters{
+		Limiter: rateLimiter,
+	}
+
 	if tls != nil {
 		bundle := credentials.NewBundle(credentials.Config{TLSConfig: tls})
 		opts = append(opts, grpc.Creds(bundle.TransportCredentials()))
@@ -46,10 +69,12 @@ func Server(s *etcdserver.EtcdServer, tls *tls.Config, gopts ...grpc.ServerOptio
 		newLogUnaryInterceptor(s),
 		newUnaryInterceptor(s),
 		grpc_prometheus.UnaryServerInterceptor,
+		ratelimit.UnaryServerInterceptor(limiter),
 	)))
 	opts = append(opts, grpc.StreamInterceptor(grpc_middleware.ChainStreamServer(
 		newStreamInterceptor(s),
 		grpc_prometheus.StreamServerInterceptor,
+		ratelimit.StreamServerInterceptor(limiter),
 	)))
 	opts = append(opts, grpc.MaxRecvMsgSize(int(s.Cfg.MaxRequestBytes+grpcOverheadBytes)))
 	opts = append(opts, grpc.MaxSendMsgSize(maxSendBytes))

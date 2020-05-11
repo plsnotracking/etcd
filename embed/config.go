@@ -17,6 +17,7 @@ package embed
 import (
 	"fmt"
 	"io/ioutil"
+	"math"
 	"net"
 	"net/http"
 	"net/url"
@@ -48,14 +49,15 @@ const (
 	ClusterStateFlagNew      = "new"
 	ClusterStateFlagExisting = "existing"
 
-	DefaultName                  = "default"
-	DefaultMaxSnapshots          = 5
-	DefaultMaxWALs               = 5
-	DefaultMaxTxnOps             = uint(128)
-	DefaultMaxRequestBytes       = 1.5 * 1024 * 1024
-	DefaultGRPCKeepAliveMinTime  = 5 * time.Second
-	DefaultGRPCKeepAliveInterval = 2 * time.Hour
-	DefaultGRPCKeepAliveTimeout  = 20 * time.Second
+	DefaultName                   = "default"
+	DefaultMaxSnapshots           = 5
+	DefaultMaxWALs                = 5
+	DefaultMaxTxnOps              = uint(128)
+	DefaultMaxRequestBytes        = 1.5 * 1024 * 1024
+	DefaultRequestsPerSecondLimit = math.MaxFloat64
+	DefaultGRPCKeepAliveMinTime   = 5 * time.Second
+	DefaultGRPCKeepAliveInterval  = 2 * time.Hour
+	DefaultGRPCKeepAliveTimeout   = 20 * time.Second
 
 	DefaultListenPeerURLs   = "http://localhost:2380"
 	DefaultListenClientURLs = "http://localhost:2379"
@@ -278,8 +280,9 @@ type Config struct {
 	ExperimentalCorruptCheckTime    time.Duration `json:"experimental-corrupt-check-time"`
 	ExperimentalEnableV2V3          string        `json:"experimental-enable-v2v3"`
 	// ExperimentalEnableLeaseCheckpoint enables primary lessor to persist lease remainingTTL to prevent indefinite auto-renewal of long lived leases.
-	ExperimentalEnableLeaseCheckpoint bool `json:"experimental-enable-lease-checkpoint"`
-	ExperimentalCompactionBatchLimit  int  `json:"experimental-compaction-batch-limit"`
+	ExperimentalEnableLeaseCheckpoint bool    `json:"experimental-enable-lease-checkpoint"`
+	ExperimentalCompactionBatchLimit  int     `json:"experimental-compaction-batch-limit"`
+	RequestsPerSecondLimit            float64 `json:"experimental-requests-per-second-limit"`
 
 	// ForceNewCluster starts a new cluster even if previously started; unsafe.
 	ForceNewCluster bool `json:"force-new-cluster"`
@@ -366,8 +369,9 @@ func NewConfig() *Config {
 		SnapshotCount:          etcdserver.DefaultSnapshotCount,
 		SnapshotCatchUpEntries: etcdserver.DefaultSnapshotCatchUpEntries,
 
-		MaxTxnOps:       DefaultMaxTxnOps,
-		MaxRequestBytes: DefaultMaxRequestBytes,
+		MaxTxnOps:              DefaultMaxTxnOps,
+		MaxRequestBytes:        DefaultMaxRequestBytes,
+		RequestsPerSecondLimit: DefaultRequestsPerSecondLimit,
 
 		GRPCKeepAliveMinTime:  DefaultGRPCKeepAliveMinTime,
 		GRPCKeepAliveInterval: DefaultGRPCKeepAliveInterval,

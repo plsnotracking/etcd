@@ -115,6 +115,8 @@ type ServerConfig struct {
 	CompactionBatchLimit    int
 	QuotaBackendBytes       int64
 	MaxTxnOps               uint
+	// RequestsPerSecondLimit is the maximum requests per second served by the node
+	RequestsPerSecondLimit float64
 
 	// MaxRequestBytes is the maximum request size to send over raft.
 	MaxRequestBytes uint
